@@ -1,7 +1,7 @@
 {
   "name": "promise-implementing",
   "version": "1.0.0",
-  "description": "A Promise A Plus implementing.",
+  "description": "A Promise/A+ implementing.",
   "repository": "https://github.com/ashengtan/promise-implementing",
   "author": "Asheng Tan <shengtann@gmail.com>",
   "license": "MIT",
