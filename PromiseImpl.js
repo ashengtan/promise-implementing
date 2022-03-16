@@ -107,33 +107,47 @@ const promiseResolutionProcedure = (promise, x, resolve, reject) => {
 
 class PromiseImpl {
   constructor(executor) {
-    // `Promise` 当前的状态
+    // `Promise` 当前的状态，初始化时为 `pending`
     this.status = STATUS_PENDING
-    // fulfilled 的值
+    // fulfilled 时的值
     this.value = null
-    // rejected 的原因
+    // rejected 时的原因
     this.reason = null
-    // 用于保存 `then()` 中的回调，一个 `Promise` 对象可以注册多个 `then()` 回调函数
+    // 用于存放 `fulfilled` 时的回调，一个 `Promise` 对象可以注册多个 `fulfilled` 回调函数
     this.onFulfilledCbs = []
-    // 用于保存 `catch()` 中的回调，一个 `Promise` 对象可以注册多个 `catch()` 回调函数
+    // 用于存放 `rejected` 时的回调，一个 `Promise` 对象可以注册多个 `rejected` 回调函数
     this.onRejectedCbs = []
 
+    // 2.1.2 When `fulfilled`, a `promise`:
+    //  2.1.2.1 must not transition to any other state.
+    //  2.1.2.2 must have a value, which must not change.
     const resolve = value => {
       if (this.status === STATUS_PENDING) {
         this.status = STATUS_FULFILLED
         this.value = value
-        invokeArrayFns(this.onFulfilledCbs, this.value)
+        // 2.2.6.1 If/when `promise` is fulfilled, 
+        // all respective `onFulfilled` callbacks must execute 
+        // in the order of their originating calls to `then`.
+        invokeArrayFns(this.onFulfilledCbs, value)
       }
     }
 
+    // 2.1.3 When `rejected`, a `promise`:
+    //  2.1.3.1 must not transition to any other state.
+    //  2.1.3.2 must have a reason, which must not change.
     const reject = reason => {
       if (this.status === STATUS_PENDING) {
         this.status = STATUS_REJECTED
         this.reason = reason
-        invokeArrayFns(this.onRejectedCbs, this.reason)
+        // 2.2.6.2 If/when `promise` is rejected, 
+        // all respective `onRejected` callbacks must execute 
+        // in the order of their originating calls to `then`.
+        invokeArrayFns(this.onRejectedCbs, reason)
       }
     }
 
+    // `new Promise()` 时，需要将 `resolve` 和 `reject` 传给调用者
+    // 使用 `trycatch` 将 `executor` 包裹起来，因为这部分是调用者的代码，我们无法保证调用者的代码不会出错。
     try {
       executor(resolve, reject)
     } catch (e) {
@@ -148,9 +162,9 @@ class PromiseImpl {
 
     // 2.2.7.3 If `onFulfilled` is not a function and `promise1` is fulfilled, 
     // `promise2` must be fulfilled with the same value as `promise1`.
+    onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : value => value
     // 2.2.7.4 If `onRejected` is not a function and `promise1` is rejected, 
     // `promise2` must be rejected with the same reason as `promise1`.
-    onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : value => value
     onRejected = typeof onRejected === 'function' ? onRejected : reason => { throw reason }
 
     let promise2 = new PromiseImpl((resolve, reject) => {
@@ -198,9 +212,11 @@ class PromiseImpl {
         this.onFulfilledCbs.push(() => {
           setTimeout(() => {
             try {
+              // 2.2.7.1
               let x = onFulfilled(this.value)
               promiseResolutionProcedure(promise2, x, resolve, reject)
             } catch (e) {
+              // 2.2.7.2
               reject(e)
             }
           }, 0)
@@ -209,9 +225,11 @@ class PromiseImpl {
         this.onRejectedCbs.push(() => {
           setTimeout(() => {
             try {
+              // 2.2.7.1
               let x = onRejected(this.reason)
               promiseResolutionProcedure(promise2, x, resolve, reject)
             } catch (e) {
+              // 2.2.7.2
               reject(e)
             }
           }, 0)
