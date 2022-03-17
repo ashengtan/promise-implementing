@@ -15,10 +15,10 @@ const invokeArrayFns = (fns, arg) => {
 // 2.3 The Promise Resolution Procedure
 // Promise 解决过程
 const promiseResolutionProcedure = (promise, x, resolve, reject) => {
-  // 2.3.1 If promise and x refer to the same object, reject promise with a TypeError as the reason
+  // 2.3.1 If `promise` and `x` refer to the same object, reject `promise` with a `TypeError` as the reason
   // 如果 `promise` 和 `x` 指向同一对象，以 `TypeError` 为据因拒绝执行 `promise`
   if (promise === x) {
-    return reject(new TypeError('Chaining cycle detected for promise'))
+    return reject(new TypeError('`promise` and `x` refer to the same object, see: https://promisesaplus.com/#point-48'))
   }
 
   // 2.3.2 If `x` is a promise, adopt its state:
@@ -29,7 +29,7 @@ const promiseResolutionProcedure = (promise, x, resolve, reject) => {
   if (x instanceof PromiseImpl) {
     return x.then(
       value => promiseResolutionProcedure(promise, value, resolve, reject),
-      reject
+      reason => reject(reason)
     )
   }
 
@@ -38,20 +38,22 @@ const promiseResolutionProcedure = (promise, x, resolve, reject) => {
   if ((x !== null && typeof x === 'object') || typeof x === 'function') {
     // 2.3.3 Otherwise, if x is an object or function
     try {
-      // 2.3.3.1 Let then be x.then
+      // 2.3.3.1 Let `then` be `x.then`
       let then = x.then
 
       if (typeof then === 'function') {
-        // 2.3.3.3 If then is a function, call it with `x` as `this`, first argument resolvePromise, and second argument rejectPromise
-        // 如果 `then` 是函数，将 `x` 作为函数的作用域 `this` 调用之。
+        // 2.3.3.3 If `then` is a function, call it with `x` as `this`,
+        // first argument `resolvePromise`, and second argument `rejectPromise`
+        // 如果 `then` 是函数，则将 `x` 作为 `then` 作用域，并调用 `then`，
         // 传递两个回调函数作为参数，第一个参数叫做 `resolvePromise` ，第二个参数叫做 `rejectPromise`
         then.call(
           // call it with `x` as `this`
           x,
+
           // `resolvePromise`
           // 2.3.3.3.1 If/when `resolvePromise` is called with a value `y`, run `[[Resolve]](promise, y)`.
           // 如果 `resolvePromise` 以值 `y` 为参数被调用，则运行 `[[Resolve]](promise, y)`
-          // 注：递归调用 `resolvePromise`，因为 `promise` 中可以嵌套 `promise`
+          // 注：递归调用 `promiseResolutionProcedure`，因为 `Promise` 中可以嵌套 `Promise`
           y => {
             // 2.3.3.3.3 If both `resolvePromise` and `rejectPromise` are called, or multiple calls to the same argument are made,
             // the first call takes precedence, and any further calls are ignored.
@@ -60,10 +62,12 @@ const promiseResolutionProcedure = (promise, x, resolve, reject) => {
             if (called) {
               return
             }
+            // `resolvePromise` 被调用时设置为 true
             called = true
 
             promiseResolutionProcedure(promise, y, resolve, reject)
           },
+
           // `rejectPromise`
           // 2.3.3.3.2 If/when `rejectPromise` is called with a reason `r`, reject `promise` with `r`
           // 如果 `rejectPromise` 以据因 `r` 为参数被调用，则以据因 `r` 拒绝 `promise`
@@ -72,6 +76,7 @@ const promiseResolutionProcedure = (promise, x, resolve, reject) => {
             if (called) {
               return
             }
+            // `rejectPromise` 被调用时设置为 true
             called = true
 
             reject(r)
@@ -117,11 +122,13 @@ class PromiseImpl {
     this.onFulfilledCbs = []
     // 用于存放 `rejected` 时的回调，一个 `Promise` 对象可以注册多个 `rejected` 回调函数
     this.onRejectedCbs = []
+    this._reject = this._rejectFn
+    this._resolve = this._resolveFn
 
     // 2.1.2 When `fulfilled`, a `promise`:
     //  2.1.2.1 must not transition to any other state.
     //  2.1.2.2 must have a value, which must not change.
-    const resolve = value => {
+    const _resolve = value => {
       if (this.status === STATUS_PENDING) {
         this.status = STATUS_FULFILLED
         this.value = value
@@ -135,7 +142,7 @@ class PromiseImpl {
     // 2.1.3 When `rejected`, a `promise`:
     //  2.1.3.1 must not transition to any other state.
     //  2.1.3.2 must have a reason, which must not change.
-    const reject = reason => {
+    const _reject = reason => {
       if (this.status === STATUS_PENDING) {
         this.status = STATUS_REJECTED
         this.reason = reason
@@ -149,7 +156,7 @@ class PromiseImpl {
     // `new Promise()` 时，需要将 `resolve` 和 `reject` 传给调用者
     // 使用 `trycatch` 将 `executor` 包裹起来，因为这部分是调用者的代码，我们无法保证调用者的代码不会出错。
     try {
-      executor(resolve, reject)
+      executor(_resolve, _reject)
     } catch (e) {
       reject(e)
     }
