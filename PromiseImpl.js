@@ -12,6 +12,10 @@ const invokeArrayFns = (fns, arg) => {
   }
 }
 
+// 判断是否为可迭代对象
+// see: https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Iteration_protocols
+const isIterable = value => !!value && typeof value[Symbol.iterator] === 'function'
+
 // 2.3 The Promise Resolution Procedure
 // Promise 解决过程
 const promiseResolutionProcedure = (promise, x, resolve, reject) => {
@@ -129,6 +133,15 @@ class PromiseImpl {
     //  2.1.2.1 must not transition to any other state.
     //  2.1.2.2 must have a value, which must not change.
     const _resolve = value => {
+      // 如果 `value` 是 `Promise`（即嵌套 `Promise`），
+      // 则需要等待该 `Promise` 执行完成
+      if (value instanceof PromiseImpl) {
+        return value.then(
+          value => _resolve(value),
+          reason => _reject(reason)
+        )
+      }
+
       if (this.status === STATUS_PENDING) {
         this.status = STATUS_FULFILLED
         this.value = value
@@ -158,7 +171,7 @@ class PromiseImpl {
     try {
       executor(_resolve, _reject)
     } catch (e) {
-      reject(e)
+      _reject(e)
     }
   }
 
@@ -254,17 +267,6 @@ class PromiseImpl {
     return promise2
   }
 
-  catch(onRejected) {
-    this.then(null, onRejected)
-  }
-
-  finally(onFinally) {
-    return this.then(
-      value => PromiseImpl.resolve(onFinally()).then(() => value), 
-      reason => PromiseImpl.resolve(onFinally()).then(() => { throw reason })
-    )
-  }
-
   static resolve(value) {
     return new PromiseImpl((resolve, reject) => resolve(value))
   }
@@ -274,19 +276,95 @@ class PromiseImpl {
   }
 
   static all(iterable) {
-    // TODO: Implement `Promise.all(iterable)`
+    if (!isIterable(iterable)) {
+      return new TypeError(`TypeError: ${typeof iterable} is not iterable (cannot read property Symbol(Symbol.iterator))`)
+    }
+
+    return new PromiseImpl((resolve, reject) => {
+      // `fulfilled` 的 Promise 数量
+      let fulfilledCount = 0
+      // 收集 Promise `fulfilled` 时的值
+      const res = []
+
+      // - 填充 `res` 的值
+      // - 增加 `fulfilledCount`
+      // - 判断所有 `Promise` 是否已经全部成功执行
+      const processRes = (index, value) => {
+        res[index] = value
+        fulfilledCount++
+        if (fulfilledCount === iterable.length) {
+          resolve(res)
+        }
+      }
+
+      if (iterable.length === 0) {
+        resolve(res)
+      } else {
+        for (let i = 0; i < iterable.length; i++) {
+          const iterator = iterable[i]
+
+          if (iterator && typeof iterator.then === 'function') {
+            iterator.then(
+              value => processRes(i, value),
+              reason => reject(reason)
+            )
+          } else {
+            processRes(i, iterator)
+          }
+        }
+      }
+    })
   }
 
   static race(iterable) {
-    // TODO: Implement `Promise.race(iterable)`
+    if (!isIterable(iterable)) {
+      return new TypeError(`TypeError: ${typeof iterable} is not iterable (cannot read property Symbol(Symbol.iterator))`)
+    }
+
+    return new PromiseImpl((resolve, reject) => {
+      if (iterable.length === 0) {
+        return
+      } else {
+        for (let i = 0; i < iterable.length; i++) {
+          const iterator = iterable[i]
+          
+          if (iterator && typeof iterator.then === 'function') {
+            iterator.then(
+              value => resolve(value),
+              reason => reject(reason)
+            )
+            return // 使用 `return` 来结束 `for` 循环
+          } else {
+            resolve(iterator)
+            return
+          }
+        }
+      }
+    })
   }
 
   static allSettled(iterable) {
-    // TODO: Implement `Promise.allSettled(iterable)`
+    if (!isIterable(iterable)) {
+      return new TypeError(`TypeError: ${typeof iterable} is not iterable (cannot read property Symbol(Symbol.iterator))`)
+    }
+
+    const promises = iterable.map(iterator => PromiseImpl.resolve(iterator).then(
+      value => ({ status: STATUS_FULFILLED, value }),
+      reason => ({ status: STATUS_REJECTED, reason })
+    ))
+
+    return PromiseImpl.all(promises)
   }
 
-  static any(iterable) {
-    // TODO: Implement `Promise.any(iterable)`
+  catch(onRejected) {
+    return this.then(null, onRejected)
+  }
+
+  finally(onFinally) {
+    return this.then(
+      value => PromiseImpl.resolve(onFinally()).then(() => value), 
+      reason => PromiseImpl.resolve(onFinally()).then(() => { throw reason })
+    )
   }
 }
 
