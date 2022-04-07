@@ -348,10 +348,15 @@ class PromiseImpl {
       return new TypeError(`TypeError: ${typeof iterable} is not iterable (cannot read property Symbol(Symbol.iterator))`)
     }
 
-    const promises = iterable.map(iterator => PromiseImpl.resolve(iterator).then(
-      value => ({ status: STATUS_FULFILLED, value }),
-      reason => ({ status: STATUS_REJECTED, reason })
-    ))
+    const promises = []
+    for (const iterator of iterable) {
+      promises.push(
+        PromiseImpl.resolve(iterator).then(
+          value => ({ status: STATUS_FULFILLED, value }),
+          reason => ({ status: STATUS_REJECTED, reason })
+        )
+      )
+    }
 
     return PromiseImpl.all(promises)
   }
