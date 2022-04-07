@@ -268,6 +268,23 @@ class PromiseImpl {
   }
 
   static resolve(value) {
+    // 1. 参数是 Promise 对象
+    if (value instanceof PromiseImpl) {
+      return value
+    }
+
+    // 2. 参数是 thenable
+    if (value !== null && typeof value === 'object' && typeof value.then === 'function') {
+      return new PromiseImpl((resolve, reject) => {
+        value.then(
+          v => resolve(v),
+          e => reject(e)
+        )
+      })
+    }
+
+    // 3. 参数是原始值或不具有 `then()` 方法的对象
+    // 4. 参数为空
     return new PromiseImpl((resolve, reject) => resolve(value))
   }
 
