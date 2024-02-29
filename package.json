@@ -2,11 +2,11 @@
   "name": "promise-implementing",
   "version": "1.0.0",
   "description": "A Promise/A+ implementing.",
-  "repository": "https://github.com/ashengtan/promise-implementing",
-  "author": "Asheng Tan <shengtann@gmail.com>",
+  "repository": "https://github.com/sengdang/promise-implementing",
+  "author": "Seng Dang <asengdang@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ashengtan/promise-implementing/issues"
+    "url": "https://github.com/sengdang/promise-implementing/issues"
   },
   "private": true,
   "dependencies": {
